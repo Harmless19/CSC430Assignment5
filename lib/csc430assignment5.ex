@@ -40,10 +40,12 @@ defmodule Csc430assignment5 do
       [:StrC, s] -> [:StrV, s]
       [:IdC, s] -> lookup(s, env)
       [:IfC, tst, then, els] -> ifc(interp(tst, env), then, els, env)
-      [:LamC, args, body] -> [:CloV, args, body]
+      [:LamC, args, body] -> [:CloV, args, body, env]
+      [:AppC, fun, args] -> appc(interp(fun, env), args, env)
     end
   end
 
+  # given tst
   def ifc(tstRes, then, els, env) do
     case tstRes do
       [:BoolV, b] ->
@@ -54,6 +56,39 @@ defmodule Csc430assignment5 do
         end
       _ -> raise "if given a test that did not evaluate to a boolean"
     end
+  end
+
+  # given fVal : CloV, args : [ExprC ...]
+  def appc([:CloV, params, body, env], args, cEnv) do
+    :CloV
+  end
+  
+  def appc([:PrimV, prim], args, cEnv) do
+    cond do
+      prim == :error and Enum.count(args) == 1 -> 
+        raise "An error has occured"
+      Enum.count(args) == 2 ->
+        case prim do
+          :+ -> numPrim(:+, fn(x, y) -> x + y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
+          :- -> numPrim(:-, fn(x, y) -> x - y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
+          :* -> numPrim(:*, fn(x, y) -> x * y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
+          :/ -> numPrim(:/, fn(x, y) -> x / y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
+          :<= -> :lteq
+          :equal? -> :eq
+        end
+      true -> raise "AQSE Wrong number of arguments given for primitive"
+    end
+  end
+
+  def numPrim(op, fun, [[:NumV, x], [:NumV, y]]) do
+    if op == :/ and y == 0 do
+      raise "AQSE division by 0"
+    end
+    [:NumV, fun.(x, y)]
+  end
+
+  def numPrim(_op, _fun, _other) do
+    raise ArithmeticError, "numPrim was not given two numbers"
   end
 
   def lookup(s, env) do
