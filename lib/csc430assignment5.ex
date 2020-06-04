@@ -4,16 +4,36 @@ defmodule Csc430assignment5 do
   """
 
   @doc """
-  Hello world.
+  Assignment 5 - Translating Assignment 3 into Elixir
 
   ## Examples
 
-      iex> Csc430assignment5.hello()
-      :world
+      iex> Csc430assignment5.interp([:IfC, [:IdC, :t], [:NumC, 5], [:NumC, -1]], Csc430assignment5.makeEnv())
+      [:NumV, 5]
 
   """
-  # how to call interp
-  # M.interp([:IdC, :t], M.makeEnv())
+  # an ExprC can be one of
+  # - [:NumC, double]
+  # - [:StrC, string]
+  # - [:IdC, atom]
+  # - [:IfC, ExprC, ExprC, ExprC]
+  # - [:LamC, [atom ...], ExprC]
+
+  # a Value can be one of
+  # - [:NumV, double]
+  # - [:StrV, string]
+  # - [:BoolV, boolean]
+  # - [:CloV, [atom ...], ExprC, Env]
+  # - [:PrimV, [atom ...], ExprC]
+
+  # a Binding is a
+  # - [atom, Value]
+
+  # an Env (environment) is a
+  # - [Binding ...]
+
+  # given an expr : ExprC and an env : Env
+  # interp evaluates the expr in env and returns a value
   def interp(expr, env) do
     case expr do
       [:NumC, n] -> [:NumV, n]
@@ -37,9 +57,9 @@ defmodule Csc430assignment5 do
   end
 
   def lookup(s, env) do
-    res = Enum.find(env, fn([k, v]) ->
+    [_, res] = Enum.find(env, fn([k, _]) ->
       if k == s do
-        v
+        true
       end
     end)
     if !res do
