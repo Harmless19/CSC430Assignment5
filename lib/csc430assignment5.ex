@@ -1,23 +1,13 @@
 defmodule Csc430assignment5 do
-  @moduledoc """
-  Documentation for `Csc430assignment5`.
-  """
-
-  @doc """
-  Assignment 5 - Translating Assignment 3 into Elixir
-
-  ## Examples
-
-      iex> Csc430assignment5.interp([:IfC, [:IdC, :t], [:NumC, 5], [:NumC, -1]], Csc430assignment5.makeEnv())
-      [:NumV, 5]
-
-  """
   # an ExprC can be one of
   # - [:NumC, double]
   # - [:StrC, string]
   # - [:IdC, atom]
   # - [:IfC, ExprC, ExprC, ExprC]
   # - [:LamC, [atom ...], ExprC]
+  @type exprC :: numC | strC
+  @type numC :: {n :: float}
+  @type strC :: {n :: float}
 
   # a Value can be one of
   # - [:NumV, double]
@@ -59,10 +49,28 @@ defmodule Csc430assignment5 do
   end
 
   # given fVal : CloV, args : [ExprC ...]
+  # return the value that results from evaluating the appc
   def appc([:CloV, params, body, env], args, cEnv) do
-    :CloV
+    cond do 
+      Enum.count(params) == Enum.count(args) ->
+        interp(body, extendEnv(env, params, Enum.map(args, fn(a) -> interp(a, cEnv) end)))
+    end
   end
-  
+
+  # given an env : Env, params : (Listof Atom), args : (Listof Value)
+  # extend the current environment for all params and their corresponding args
+  def extendEnv(env, [firstParams | restParams], [firstArgs | restArgs]) do
+    [[firstParams, firstArgs] | extendEnv(env, restParams, restArgs)]
+  end
+
+  # base case for extendEnv
+  # when the params and args lists are empty return the given env
+  def extendEnv(env, [], []) do
+    env
+  end
+      
+  # given prim : PrimV, args : (Listof ExprC), cEnv : Env
+  # choose the primitive operator to apply based on prim
   def appc([:PrimV, prim], args, cEnv) do
     cond do
       prim == :error and Enum.count(args) == 1 -> 
@@ -73,13 +81,16 @@ defmodule Csc430assignment5 do
           :- -> numPrim(:-, fn(x, y) -> x - y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
           :* -> numPrim(:*, fn(x, y) -> x * y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
           :/ -> numPrim(:/, fn(x, y) -> x / y end, Enum.map(args, fn(a) -> interp(a, cEnv) end))
-          :<= -> :lteq
-          :equal? -> :eq
+          :<= -> lteqPrim(Enum.map(args, fn(a) -> interp(a, cEnv) end))
+          :equal? -> equalPrim(Enum.map(args, fn(a) -> interp(a, cEnv) end))
         end
       true -> raise "AQSE Wrong number of arguments given for primitive"
     end
   end
 
+  # given op : symbol, fun : (float float -> float), x : NumV, y : NumV
+  # perform the given numeric operation on the values of x and y
+  # error on divison by zero
   def numPrim(op, fun, [[:NumV, x], [:NumV, y]]) do
     if op == :/ and y == 0 do
       raise "AQSE division by 0"
@@ -91,18 +102,42 @@ defmodule Csc430assignment5 do
     raise ArithmeticError, "numPrim was not given two numbers"
   end
 
-  def lookup(s, env) do
-    [_, res] = Enum.find(env, fn([k, _]) ->
-      if k == s do
-        true
-      end
-    end)
-    if !res do
-      raise "AQSE lookup: unbound identifier"
+  # determine equality between two Values
+  # [tx, x] is a Value and [ty, y] is a Value 
+  def equalPrim([[tx, x], [ty, y]]) do
+    cond do
+      (tx == :NumV and ty == :NumV) or
+      (tx == :StrV and ty == :StrV) or
+      (tx == :BoolV and ty == :BoolV) ->
+        [:BoolV, x == y]
+      true -> [:BoolV, false]
     end
-    res
   end
 
+  # determines if [tx, x] : Value is less than or equal to [ty, y] : Value
+  def lteqPrim([[tx, x], [ty, y]]) do
+    cond do
+      (tx == :NumV and ty == :NumV) ->
+        [:BoolV, x <= y]
+    end
+  end
+
+  # searches for s : Symbol in the given env : Env
+  def lookup(s, env) do
+    try do
+      [_, res] = Enum.find(env, fn([k, _]) ->
+        if k == s do
+          true
+        end
+      end)
+      res
+    rescue
+      e in MatchError ->
+        raise RuntimeError, "AQSE lookup: unbound identifier #{s}"
+    end
+  end
+
+  # constructs the baseEnv and returns an Env
   def makeEnv() do
     [
       [:t, [:BoolV, true]],
@@ -112,7 +147,7 @@ defmodule Csc430assignment5 do
       [:*, [:PrimV, :*]],
       [:/, [:PrimV, :/]],
       [:<=, [:PrimV, :<=]],
-      [:equal, [:PrimV, :equal]],
+      [:equal?, [:PrimV, :equal?]],
       [:error, [:PrimV, :error]]
     ]
   end
